@@ -3,36 +3,57 @@ import React, { useMemo } from 'react';
 import type { DailyLog, FoodItem, UserGoals } from '../types';
 import Icon from './common/Icon';
 
-const GoalCircle: React.FC<{ day: string, status: 'achieved' | 'partial' | 'none', isToday: boolean }> = ({ day, status, isToday }) => {
-    const achievedColor = "text-accent";
-    const partialColor = "text-accent";
+const MiniProgressRing: React.FC<{ percentage: number; size: number; strokeWidth: number; color: string; }> = ({ percentage, size, strokeWidth, color }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    // Clamp percentage to avoid visual artifacts if it exceeds 100
+    const clampedPercentage = Math.max(0, Math.min(percentage, 100));
+    const offset = circumference - (clampedPercentage / 100) * circumference;
 
     return (
+        <svg className="transform -rotate-90" width={size} height={size}>
+            {/* Background track */}
+            <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="currentColor"
+                strokeWidth={strokeWidth}
+                fill="transparent"
+                className="text-bg-subtle"
+            />
+            {/* Foreground progress */}
+            {clampedPercentage > 0 && (
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke={color}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    className="transition-all duration-700 ease-out"
+                />
+            )}
+        </svg>
+    );
+};
+
+const MiniActivityRings: React.FC<{ day: string; caloriePercentage: number; stepPercentage: number; isToday: boolean }> = ({ day, caloriePercentage, stepPercentage, isToday }) => {
+    return (
         <div className="flex flex-col items-center gap-2 text-center">
-            <div className="relative w-10 h-10">
-                <svg className="w-full h-full" viewBox="0 0 36 36">
-                    <path
-                        d="M18 2.0845
-                          a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"
-                        className="stroke-current text-bg-subtle"
-                        fill="none"
-                        strokeWidth="3"
-                    />
-                    {status !== 'none' && (
-                        <path
-                            d="M18 2.0845
-                              a 15.9155 15.9155 0 0 1 0 31.831
-                              a 15.9155 15.9155 0 0 1 0 -31.831"
-                            className={`stroke-current ${status === 'achieved' ? achievedColor : partialColor}`}
-                            fill="none"
-                            strokeWidth="3"
-                            strokeDasharray={status === 'achieved' ? "100, 100" : "50, 100"}
-                            strokeLinecap="round"
-                             transform="rotate(90 18 18)"
-                        />
-                    )}
-                </svg>
+            <div className="relative w-10 h-10 flex items-center justify-center">
+                {/* Outer Ring - Calories */}
+                <div className="absolute text-secondary">
+                   <MiniProgressRing percentage={caloriePercentage} size={40} strokeWidth={4} color="currentColor" />
+                </div>
+                
+                {/* Inner Ring - Steps */}
+                <div className="absolute text-accent">
+                  <MiniProgressRing percentage={stepPercentage} size={28} strokeWidth={4} color="currentColor" />
+                </div>
             </div>
             <span className={`font-semibold text-sm ${isToday ? 'text-text-base' : 'text-text-muted'}`}>{day}</span>
         </div>
@@ -58,37 +79,36 @@ const DailyGoals: React.FC<DailyGoalsProps> = ({ dailyLogs, userGoals, foodDatab
             
             const log = dailyLogs.find(l => l.date === dateStr);
             
-            let goalsMetCount = 0;
+            let caloriesConsumed = 0;
+            let steps = 0;
             
             if (log) {
-                const caloriesConsumed = log.meals.reduce((total, meal) => {
+                caloriesConsumed = log.meals.reduce((total, meal) => {
                   return total + meal.foods.reduce((mealTotal, loggedFood) => {
                     const foodDetails = foodDatabase.find(f => f.id === loggedFood.foodId);
                     return mealTotal + (foodDetails ? foodDetails.calories * loggedFood.servings : 0);
                   }, 0);
                 }, 0);
-
-                if (caloriesConsumed >= userGoals.calorieTarget) goalsMetCount++;
-                if (log.steps >= userGoals.stepTarget) goalsMetCount++;
+                steps = log.steps || 0;
             }
             
-            let status: 'achieved' | 'partial' | 'none' = 'none';
-            if (goalsMetCount === 2) {
-                status = 'achieved';
-            } else if (goalsMetCount === 1) {
-                status = 'partial';
-            }
+            const caloriePercentage = userGoals.calorieTarget > 0 ? (caloriesConsumed / userGoals.calorieTarget) * 100 : 0;
+            const stepPercentage = userGoals.stepTarget > 0 ? (steps / userGoals.stepTarget) * 100 : 0;
+            
+            const isAchieved = caloriePercentage >= 100 && stepPercentage >= 100;
 
             data.push({
                 day: dayInitial,
-                status,
+                caloriePercentage,
+                stepPercentage,
+                isAchieved,
                 isToday: i === 0
             });
         }
         return data;
     }, [dailyLogs, userGoals, foodDatabase]);
 
-    const achievedCount = weeklyData.filter(d => d.status === 'achieved').length;
+    const achievedCount = weeklyData.filter(d => d.isAchieved).length;
 
     return (
         <div onClick={onClick} className="bg-bg-muted p-4 rounded-lg cursor-pointer hover:bg-bg-subtle/60 transition-colors">
@@ -106,7 +126,13 @@ const DailyGoals: React.FC<DailyGoalsProps> = ({ dailyLogs, userGoals, foodDatab
                 </div>
                 <div className="flex gap-1 sm:gap-3">
                     {weeklyData.map((d, i) => (
-                        <GoalCircle key={i} day={d.day} status={d.status} isToday={d.isToday} />
+                        <MiniActivityRings 
+                            key={i} 
+                            day={d.day} 
+                            caloriePercentage={d.caloriePercentage} 
+                            stepPercentage={d.stepPercentage} 
+                            isToday={d.isToday} 
+                        />
                     ))}
                 </div>
             </div>
