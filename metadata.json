@@ -1,0 +1,5 @@
+{
+  "name": "applicaion of lockin PPL Tracker",
+  "description": "A modern web application to track your Push/Pull/Legs workout progress. Log exercises, sets, reps, and weights to monitor your volume and stay consistent with your training schedule. Features daily supplement tracking and AI-powered exercise tips.",
+  "requestFramePermissions": []
+}
