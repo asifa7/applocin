@@ -1,8 +1,9 @@
 
+
 import React from 'react';
 // FIX: Correcting import path for types
-import type { DailyChecklistItem } from '../types';
-import Icon from './common/Icon';
+import type { DailyChecklistItem } from '../types.ts';
+import Icon from './common/Icon.tsx';
 
 interface DailyChecklistProps {
   items: DailyChecklistItem[];

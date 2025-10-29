@@ -1,459 +1,602 @@
-import React, { useState, useMemo, useEffect } from 'react';
 
-// Import hooks
-import { useLocalStorage } from './hooks/useLocalStorage';
-// FIX: Corrected typo in the imported constant name from ALL_EXEXRCISES_BY_GROUP to ALL_EXERCISES_BY_GROUP.
-import { ALL_EXERCISES_BY_GROUP } from './constants/allExercises';
-import { ALL_FOODS } from './constants/foods';
-import { getAge } from './utils/fitnessCalculations';
-import { palettes } from './constants/palettes';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocalStorage } from './hooks/useLocalStorage.ts';
+import type { UserProfile, View, WeightUnit, Session, WorkoutTemplate, DailyLog, FoodItem, DailyChecklistItem, UserRatings, GoogleFitData } from './types.ts';
 
-// Import types
-import type {
-  Session,
-  WorkoutTemplate,
-  WeightUnit,
-  UserRatings,
-  SetEntry,
-  Exercise,
-  UserProfile,
-  DailyLog,
-  FoodItem,
-  View,
-} from './types';
+// Constants
+import { ALL_FOODS } from './constants/foods.ts';
+import { allExercises } from './constants/allExercises.ts';
+import { palettes } from './constants/palettes.ts';
+import { getAge } from './utils/fitnessCalculations.ts';
 
-// Import components
-import LoginPage from './components/LoginPage';
-import WorkoutSession from './components/WorkoutSession';
-import Dashboard from './components/Dashboard';
-import History from './components/History';
-import Profile from './components/Profile';
-import Strategy from './components/Strategy';
-import WorkoutSelectionModal from './components/WorkoutSelectionModal';
-import Onboarding from './components/Onboarding';
-import NutritionTracker from './components/NutritionTracker';
-import More from './components/More';
-import Icon from './components/common/Icon';
-import MyActivity from './components/MyActivity';
-import Settings from './components/Settings';
-import AddActionModal from './components/AddActionModal';
+// Components
+import LoginPage from './components/LoginPage.tsx';
+import Onboarding from './components/Onboarding.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import Strategy from './components/Strategy.tsx';
+import NutritionTracker from './components/NutritionTracker.tsx';
+import History from './components/History.tsx';
+import Settings from './components/Settings.tsx';
+import More from './components/More.tsx';
+import WorkoutSession from './components/WorkoutSession.tsx';
+import AddActionModal from './components/AddActionModal.tsx';
+import WorkoutSelectionModal from './components/WorkoutSelectionModal.tsx';
+import Icon from './components/common/Icon.tsx';
+import Profile from './components/Profile.tsx';
+import MyActivity from './components/MyActivity.tsx';
+
+// --- GOOGLE FIT CONSTANTS & CONFIG ---
+const GOOGLE_FIT_REDIRECT_URI = window.location.origin;
+const GOOGLE_FIT_SCOPES = 'https://www.googleapis.com/auth/fitness.activity.read';
+
+// --- PKCE HELPER FUNCTIONS ---
+const generateCodeVerifier = (): string => {
+  const randomBytes = new Uint8Array(32);
+  window.crypto.getRandomValues(randomBytes);
+  return btoa(String.fromCharCode.apply(null, Array.from(randomBytes)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
+const generateCodeChallenge = async (verifier: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(digest))))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
 
 
-// Create a map for quick exercise lookups
-export const allExercisesMap = new Map<string, Omit<Exercise, 'muscleGroup' | 'id'>>();
-ALL_EXERCISES_BY_GROUP.forEach(group => {
-  group.exercises.forEach(ex => {
-    allExercisesMap.set(ex.id, { name: ex.name });
+// --- GOOGLE FIT SERVICE FUNCTIONS ---
+const getGoogleFitAuthUrl = async (clientId: string): Promise<string> => {
+  const verifier = generateCodeVerifier();
+  sessionStorage.setItem('ppl_google_fit_code_verifier', verifier);
+  const challenge = await generateCodeChallenge(verifier);
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: GOOGLE_FIT_REDIRECT_URI,
+    response_type: 'code',
+    scope: GOOGLE_FIT_SCOPES,
+    access_type: 'offline',
+    prompt: 'consent',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
   });
-});
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+};
 
-const BottomNavItem = ({ icon, label, active, onClick }: { icon: React.ComponentProps<typeof Icon>['name']; label: string; active: boolean; onClick: () => void; }) => (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center transition-colors w-16 ${active ? 'text-primary' : 'text-text-muted hover:text-primary'}`}>
-        <Icon name={icon} className="w-6 h-6 mb-1"/>
-        <span className="text-xs font-semibold">{label}</span>
-    </button>
-);
+const exchangeCodeForTokens = async (code: string, clientId: string): Promise<GoogleFitData> => {
+  const verifier = sessionStorage.getItem('ppl_google_fit_code_verifier');
+  if (!verifier) {
+    throw new Error('Code verifier not found in session storage.');
+  }
 
-
-function App() {
-  // Authentication
-  const [currentUser, setCurrentUser] = useLocalStorage<string | null>('ppl_current_user', null);
-
-  // User-specific data keys
-  const userKey = (key: string) => currentUser ? `${currentUser}_${key}` : key;
-
-  // App State
-  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>(userKey('ppl_theme'), 'light');
-  const [palette, setPalette] = useLocalStorage<string>(userKey('ppl_palette'), 'Ocean');
-  const [unit, setUnit] = useLocalStorage<WeightUnit>(userKey('ppl_unit'), 'kg');
-  const [sessions, setSessions] = useLocalStorage<Session[]>(userKey('ppl_sessions'), []);
-  const [workoutTemplates, setWorkoutTemplates] = useLocalStorage<WorkoutTemplate[]>(userKey('ppl_templates'), []);
-  const [userRatings, setUserRatings] = useLocalStorage<UserRatings>(userKey('ppl_ratings'), {});
-  const [imageCache, setImageCache] = useLocalStorage<{[exerciseName: string]: string}>(userKey('ppl_image_cache'), {});
-  const [userProfile, setProfile] = useLocalStorage<UserProfile>(userKey('ppl_profile'), {
-    name: '', age: 0, height: 0, heightUnit: 'cm', weight: 0,
-    measurements: { chest: 0, waist: 0, hips: 0, leftArm: 0, rightArm: 0, leftThigh: 0, rightThigh: 0 },
-    measurementUnit: 'cm',
-    onboardingCompleted: false,
-    goals: { calorieTarget: 2000, stepTarget: 10000 },
+  const tokenUrl = 'https://oauth2.googleapis.com/token';
+  const body = new URLSearchParams({
+    code,
+    client_id: clientId,
+    redirect_uri: GOOGLE_FIT_REDIRECT_URI,
+    grant_type: 'authorization_code',
+    code_verifier: verifier,
   });
-  const [dailyLogs, setDailyLogs] = useLocalStorage<DailyLog[]>(userKey('ppl_daily_logs'), []);
-  const [customFoods, setCustomFoods] = useLocalStorage<FoodItem[]>(userKey('ppl_custom_foods'), []);
 
-  // UI State
-  const [view, setView] = useState<View>('DASHBOARD');
-  const [activeSession, setActiveSession] = useState<Session | null>(null);
-  const [isWorkoutSelectionModalOpen, setWorkoutSelectionModalOpen] = useState(false);
-  const [workoutRequestDate, setWorkoutRequestDate] = useState<string | null>(null);
-  const [isAddActionModalOpen, setAddActionModalOpen] = useState(false);
-  const [initialActivityTab, setInitialActivityTab] = useState<'calories' | 'steps'>('calories');
-  
-  // Centralized food database
-  const foodDatabase = useMemo(() => [...ALL_FOODS, ...customFoods], [customFoods]);
-  
-  // Data migration/cleanup effect to handle outdated user profiles in localStorage
-  useEffect(() => {
-    // This effect checks if the loaded user profile has the necessary nested objects.
-    // If not, it adds them with default values to prevent runtime errors like
-    // "Cannot read properties of undefined (reading 'chest')".
-    if (userProfile && (!userProfile.measurements || !userProfile.goals || !userProfile.measurementUnit)) {
-      setProfile(currentProfile => {
-        const newProfile = { ...currentProfile };
-        if (!newProfile.measurements) {
-          newProfile.measurements = { chest: 0, waist: 0, hips: 0, leftArm: 0, rightArm: 0, leftThigh: 0, rightThigh: 0 };
-        }
-        if (!newProfile.goals) {
-          newProfile.goals = { calorieTarget: 2000, stepTarget: 10000 };
-        }
-        if (!newProfile.measurementUnit) {
-          newProfile.measurementUnit = 'cm';
-        }
-        return newProfile;
-      });
-    }
-  }, [userProfile, setProfile]);
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
 
-  // Apply theme and palette
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-
-    const selectedPalette = palettes.find(p => p.name === palette) || palettes[0];
-    const themeColors = selectedPalette[theme];
-
-    for (const [key, value] of Object.entries(themeColors)) {
-        document.documentElement.style.setProperty(`--color-${key.replace(/'/g, "")}`, value);
-    }
-  }, [theme, palette]);
-  
-  const handleLogin = (mobileNumber: string) => {
-    const isTestUser = mobileNumber === '7200134807';
-    const profileKey = `${mobileNumber}_ppl_profile`;
-    const profileExists = !!localStorage.getItem(profileKey);
-
-    if (!profileExists && isTestUser) {
-        // --- SEED DATA FOR TEST USER ---
-        localStorage.setItem(`ppl_tracker_auth_${mobileNumber}`, 'Asif');
-        
-        const testProfile: UserProfile = {
-            name: 'Asif',
-            age: 28,
-            dob: '1996-05-20',
-            sex: 'Male',
-            height: 178,
-            heightUnit: 'cm',
-            weight: 75,
-            measurements: { chest: 100, waist: 80, hips: 95, leftArm: 38, rightArm: 38, leftThigh: 55, rightThigh: 55 },
-            measurementUnit: 'cm',
-            onboardingCompleted: true,
-            goals: { calorieTarget: 2500, stepTarget: 8000 },
-            lastUpdated: new Date().toISOString()
-        };
-        localStorage.setItem(profileKey, JSON.stringify(testProfile));
-        
-        const testTemplates: WorkoutTemplate[] = [
-          { id: 'tpl_ppl_1', dayOfWeek: 'Monday', title: 'Push Day', exercises: [{ exerciseId: 'chest_4', defaultSets: 3, defaultReps: '8-12'}, { exerciseId: 'shoulder_22', defaultSets: 3, defaultReps: '10-15' }, { exerciseId: 'tricep_17', defaultSets: 3, defaultReps: '10-15' }] },
-          { id: 'tpl_ppl_2', dayOfWeek: 'Wednesday', title: 'Pull Day', exercises: [{ exerciseId: 'back_5', defaultSets: 3, defaultReps: '8-12'}, { exerciseId: 'back_41', defaultSets: 3, defaultReps: '10-15' }, { exerciseId: 'bicep_10', defaultSets: 3, defaultReps: '10-15' }] },
-          { id: 'tpl_ppl_3', dayOfWeek: 'Friday', title: 'Leg Day', exercises: [{ exerciseId: 'leg_61', defaultSets: 3, defaultReps: '8-12'}, { exerciseId: 'leg_35', defaultSets: 3, defaultReps: '10-15' }, { exerciseId: 'calve_8', defaultSets: 3, defaultReps: '15-20' }] },
-        ];
-        localStorage.setItem(`${mobileNumber}_ppl_templates`, JSON.stringify(testTemplates));
-
-        const getDateStr = (offset: number) => {
-          const d = new Date();
-          d.setDate(d.getDate() - offset);
-          return d.toISOString().split('T')[0];
-        };
-        
-        const testSessions: Session[] = [
-            { id: 'sess_1', date: getDateStr(2), templateId: 'tpl_ppl_3', status: 'completed', totalVolume: 8500, unit: 'kg', completedAt: new Date(getDateStr(2) + 'T18:00:00Z').toISOString(), exercises: [] },
-            { id: 'sess_2', date: getDateStr(4), templateId: 'tpl_ppl_2', status: 'completed', totalVolume: 7200, unit: 'kg', completedAt: new Date(getDateStr(4) + 'T17:30:00Z').toISOString(), exercises: [] },
-            { id: 'sess_3', date: getDateStr(6), templateId: 'tpl_ppl_1', status: 'completed', totalVolume: 9100, unit: 'kg', completedAt: new Date(getDateStr(6) + 'T18:15:00Z').toISOString(), exercises: [] },
-        ];
-        localStorage.setItem(`${mobileNumber}_ppl_sessions`, JSON.stringify(testSessions));
-        
-        const testLogs: DailyLog[] = [
-            { date: getDateStr(0), meals: [ { name: 'Breakfast', foods: [ { id: 'log-b1', foodId: 'food_7', servings: 1, loggedAt: new Date().toISOString() }, { id: 'log-b2', foodId: 'food_5', servings: 1, loggedAt: new Date().toISOString() } ] }, { name: 'Lunch', foods: [] }, { name: 'Dinner', foods: [] }, { name: 'Snacks', foods: [] } ], waterIntake: 1000, steps: 3450 },
-            { date: getDateStr(1), meals: [ { name: 'Breakfast', foods: [] }, { name: 'Lunch', foods: [{ id: 'log-l1', foodId: 'food_1', servings: 1.5, loggedAt: new Date().toISOString() }] }, { name: 'Dinner', foods: [] }, { name: 'Snacks', foods: [] } ], waterIntake: 2000, steps: 9800 },
-            { date: getDateStr(2), meals: [], waterIntake: 2500, steps: 11200 },
-            { date: getDateStr(3), meals: [], waterIntake: 1500, steps: 6500 },
-        ];
-        localStorage.setItem(`${mobileNumber}_ppl_daily_logs`, JSON.stringify(testLogs));
-    }
-    // For both existing and new users, just set the current user.
-    // The reactive useLocalStorage hook will handle loading the correct data.
-    setCurrentUser(mobileNumber);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Failed to exchange code for token: ${errorData.error_description || 'Unknown error'}`);
+  }
+  const data = await response.json();
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+    scope: data.scope,
   };
-  
-  const handleLogout = () => {
-    setCurrentUser(null);
-  };
+};
 
-  const startWorkout = (template: WorkoutTemplate, date: string = new Date().toISOString().split('T')[0]) => {
-    const newSession: Session = {
-      id: `session-${Date.now()}`,
-      date,
-      templateId: template.id,
-      status: 'in-progress',
-      totalVolume: 0,
-      unit,
-      exercises: template.exercises.map(tempEx => {
-        const details = allExercisesMap.get(tempEx.exerciseId);
-        const fullDetails = ALL_EXERCISES_BY_GROUP.flatMap(g => g.exercises.map(e => ({...e, muscleGroup: g.group}))).find(e => e.id === tempEx.exerciseId);
-        const sets: SetEntry[] = Array.from({ length: tempEx.defaultSets }, (_, i) => ({
-          id: `set-${Date.now()}-${i}`, reps: 0, weight: 0, volume: 0,
-        }));
-        return {
-          id: tempEx.exerciseId,
-          name: details?.name || 'Unknown Exercise',
-          muscleGroup: fullDetails?.muscleGroup || 'Unknown',
-          sets,
-        };
-      }),
+const refreshAccessToken = async (refreshToken: string, clientId: string): Promise<GoogleFitData> => {
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const body = new URLSearchParams({
+        client_id: clientId,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+    });
+
+    const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
+    }
+    const data = await response.json();
+    return {
+        accessToken: data.access_token,
+        refreshToken: refreshToken, // Reuse the existing refresh token
+        expiresAt: Date.now() + data.expires_in * 1000,
+        scope: data.scope,
     };
-    setActiveSession(newSession);
-    setSessions(prev => [...prev.filter(s => s.id !== newSession.id), newSession]);
-    setView('SESSION');
-  };
-  
-  const handleStartWorkoutRequest = (date: string) => {
-      setWorkoutRequestDate(date);
-      setWorkoutSelectionModalOpen(true);
-  };
+};
 
-  const handleSelectWorkout = (template: WorkoutTemplate) => {
-      if (workoutRequestDate) {
-          startWorkout(template, workoutRequestDate);
-          setWorkoutRequestDate(null);
-      }
-      setWorkoutSelectionModalOpen(false);
-  };
-  
-  const handleEditSession = (sessionId: string) => {
-    const sessionToEdit = sessions.find(s => s.id === sessionId);
-    if(sessionToEdit) {
-      setActiveSession(sessionToEdit);
-      setView('SESSION');
-    }
-  };
+const fetchTodayStepCount = async (accessToken: string): Promise<number> => {
+    const today = new Date();
+    const startTime = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const endTime = Date.now();
 
-  const handleUpdateSession = (updatedSession: Session) => {
-    setActiveSession(updatedSession);
-    setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
-  };
-  
-  const handleSaveTemplates = (newTemplates: WorkoutTemplate[]) => {
-    setWorkoutTemplates(newTemplates);
-  };
-  
-  const handleSaveProfile = (profileData: UserProfile) => {
-    const age = profileData.dob ? getAge(profileData.dob) : 0;
-    setProfile({
-      ...profileData,
-      age,
-      onboardingCompleted: true,
-      lastUpdated: new Date().toISOString(),
+    const requestBody = {
+        aggregateBy: [{
+            dataTypeName: "com.google.step_count.delta",
+            dataSourceId: "derived:com.google.step_count.delta:com.google.android.gms:aggregated"
+        }],
+        bucketByTime: { durationMillis: 86400000 }, // 1 day
+        startTimeMillis: startTime,
+        endTimeMillis: endTime,
+    };
+    
+    const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
     });
-  };
-  
-  const todayLog = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    let log = dailyLogs.find(l => l.date === todayStr);
-    if (!log) {
-        log = {
-            date: todayStr,
-            meals: [
-                { name: 'Breakfast', foods: [] },
-                { name: 'Lunch', foods: [] },
-                { name: 'Dinner', foods: [] },
-                { name: 'Snacks', foods: [] },
-            ],
-            waterIntake: 0,
-            steps: 0,
-        };
-    }
-    return log;
-  }, [dailyLogs]);
 
-  const handleUpdateLog = (updatedLog: DailyLog) => {
-    setDailyLogs(prev => {
-        const existing = prev.find(l => l.date === updatedLog.date);
-        if(existing) {
-            return prev.map(l => l.date === updatedLog.date ? updatedLog : l);
+    if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.error?.status === 'UNAUTHENTICATED') {
+            throw new Error('Token is invalid or expired.');
         }
-        return [...prev, updatedLog];
-    });
-  };
-  
-  const handleAddCustomFood = (food: FoodItem) => {
-    setCustomFoods(prev => [...prev, food]);
-  };
-
-  const nextWorkoutTemplate = useMemo(() => {
-    if (!workoutTemplates || workoutTemplates.length === 0) {
-        return null;
+        throw new Error('Failed to fetch step count from Google Fit.');
     }
 
-    const lastCompletedSession = [...sessions]
-        .filter(s => s.status === 'completed' && s.completedAt)
-        .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())
-        [0];
+    const data = await response.json();
+    if (data.bucket?.[0]?.dataset?.[0]?.point?.[0]?.value?.[0]?.intVal) {
+        return data.bucket[0].dataset[0].point[0].value[0].intVal;
+    }
+    return 0;
+};
+
+const disconnectGoogleFit = async (accessToken: string): Promise<void> => {
+    try {
+        await fetch(`https://oauth2.googleapis.com/revoke?token=${accessToken}`, {
+            method: 'POST',
+            headers: { 'Content-type': 'application/x-www-form-urlencoded' }
+        });
+    } catch (error) {
+        console.error("Error revoking Google Fit token:", error);
+    }
+};
+// --- END GOOGLE FIT SERVICE FUNCTIONS ---
+
+// Helper to get today's date string
+const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+const App: React.FC = () => {
+    const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('ppl_current_user'));
+
+    const handleLogin = (user: string) => {
+        localStorage.setItem('ppl_current_user', user);
+        setCurrentUser(user);
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('ppl_current_user');
+        setCurrentUser(null);
+    };
+
+    if (!currentUser) {
+        return <LoginPage onLogin={handleLogin} />;
+    }
+
+    return <MainApp userKey={currentUser} onLogout={handleLogout} />;
+};
+
+const MainApp: React.FC<{ userKey: string; onLogout: () => void; }> = ({ userKey, onLogout }) => {
+    // --- LOCAL STORAGE STATE ---
+    const [profile, setProfile] = useLocalStorage<UserProfile | null>(`ppl_profile_${userKey}`, null);
+    const [sessions, setSessions] = useLocalStorage<Session[]>(`ppl_sessions_${userKey}`, []);
+    const [workoutTemplates, setWorkoutTemplates] = useLocalStorage<WorkoutTemplate[]>(`ppl_templates_${userKey}`, []);
+    const [dailyLogs, setDailyLogs] = useLocalStorage<DailyLog[]>(`ppl_daily_logs_${userKey}`, []);
+    const [foodDatabase, setFoodDatabase] = useLocalStorage<FoodItem[]>(`ppl_foods_${userKey}`, ALL_FOODS);
+    const [userRatings, setUserRatings] = useLocalStorage<UserRatings>(`ppl_ratings_${userKey}`, {});
+    const [theme, setTheme] = useLocalStorage<'light' | 'dark'>(`ppl_theme_${userKey}`, 'dark');
+    const [palette, setPalette] = useLocalStorage<string>(`ppl_palette_${userKey}`, 'Midnight');
+    const [unit, setUnit] = useLocalStorage<WeightUnit>(`ppl_unit_${userKey}`, 'kg');
+    const [googleFitData, setGoogleFitData] = useLocalStorage<GoogleFitData | null>(`ppl_google_fit_${userKey}`, null);
+    const [googleClientId, setGoogleClientId] = useLocalStorage<string | null>(`ppl_google_client_id_${userKey}`, null);
+
+
+    // --- UI STATE ---
+    const [view, setView] = useState<View>('DASHBOARD');
+    const [activeSession, setActiveSession] = useState<Session | null>(null);
+    const [isAddActionModalOpen, setAddActionModalOpen] = useState(false);
+    const [isWorkoutSelectionModalOpen, setWorkoutSelectionModalOpen] = useState(false);
+    const [isSyncingSteps, setIsSyncingSteps] = useState(false);
     
-    if (!lastCompletedSession) {
-        return workoutTemplates[0];
-    }
+    // --- THEME MANAGEMENT ---
+    useEffect(() => {
+        const root = document.documentElement;
+        const selectedPalette = palettes.find(p => p.name === palette) || palettes[0];
+        const colors = selectedPalette[theme];
 
-    const lastTemplateIndex = workoutTemplates.findIndex(t => t.id === lastCompletedSession.templateId);
+        for (const [key, value] of Object.entries(colors)) {
+            root.style.setProperty(`--color-${key}`, value);
+        }
+        
+        root.classList.remove('light', 'dark');
+        root.classList.add(theme);
+    }, [theme, palette]);
 
-    if (lastTemplateIndex === -1) {
-        return workoutTemplates[0]; // Fallback
+    // --- DATA DERIVATION & HELPERS ---
+    const todaysLog = useMemo(() => {
+        const todayStr = getTodayDateString();
+        let log = dailyLogs.find(l => l.date === todayStr);
+        if (!log) {
+            log = {
+                date: todayStr,
+                meals: [
+                    { name: 'Breakfast', foods: [] },
+                    { name: 'Lunch', foods: [] },
+                    { name: 'Dinner', foods: [] },
+                    { name: 'Snacks', foods: [] },
+                ],
+                steps: 0,
+            };
+        }
+        return log;
+    }, [dailyLogs]);
+    
+    const updateTodaysLog = (updatedLog: DailyLog) => {
+        setDailyLogs(prevLogs => {
+            const index = prevLogs.findIndex(l => l.date === updatedLog.date);
+            if (index > -1) {
+                const newLogs = [...prevLogs];
+                newLogs[index] = updatedLog;
+                return newLogs;
+            }
+            return [...prevLogs, updatedLog];
+        });
+    };
+    
+    const nextWorkoutTemplate = useMemo(() => {
+        const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }) as any;
+        return workoutTemplates.find(t => t.dayOfWeek === todayName) || null;
+    }, [workoutTemplates]);
+
+    // --- GOOGLE FIT INTEGRATION ---
+     const syncGoogleFitSteps = async () => {
+        if (!googleFitData || !googleClientId) return;
+        setIsSyncingSteps(true);
+
+        try {
+            let currentTokens = googleFitData;
+
+            // Check if token is expired and refresh if necessary
+            if (Date.now() >= currentTokens.expiresAt) {
+                if (currentTokens.refreshToken) {
+                    console.log("Refreshing Google Fit access token...");
+                    const newTokens = await refreshAccessToken(currentTokens.refreshToken, googleClientId);
+                    setGoogleFitData(newTokens);
+                    currentTokens = newTokens;
+                } else {
+                    throw new Error("Session expired and no refresh token available.");
+                }
+            }
+
+            const steps = await fetchTodayStepCount(currentTokens.accessToken);
+            updateTodaysLog({ ...todaysLog, steps });
+        } catch (error) {
+            console.error("Google Fit sync failed:", error);
+            alert("Could not sync from Google Fit. You may need to reconnect in Settings.");
+            await handleDisconnectGoogleFit(); // Disconnect on failure to force re-auth
+        } finally {
+            setIsSyncingSteps(false);
+        }
+    };
+    
+    const handleConnectGoogleFit = async () => {
+        if (!googleClientId) {
+            alert("Please configure your Google Client ID in the Settings tab first.");
+            setView('SETTINGS');
+            return;
+        }
+        try {
+            const authUrl = await getGoogleFitAuthUrl(googleClientId);
+            window.location.href = authUrl;
+        } catch (error) {
+            console.error("Could not generate Google Fit auth URL:", error);
+            alert("An error occurred while preparing to connect to Google Fit. Please check the console.");
+        }
+    };
+    
+    const handleDisconnectGoogleFit = async () => {
+        if (googleFitData) {
+            await disconnectGoogleFit(googleFitData.accessToken);
+            setGoogleFitData(null);
+            // Reset steps in today's log if we disconnect
+            updateTodaysLog({ ...todaysLog, steps: 0 });
+        }
+    };
+
+    // Handle OAuth redirect from Google
+    useEffect(() => {
+        const handleOAuthRedirect = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const error = params.get('error');
+
+            if (error) {
+                console.error('OAuth Error:', error);
+                alert('Google Fit connection failed. Please try again.');
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+
+            if (code) {
+                 if (!googleClientId) {
+                    console.error("Received OAuth code but no Client ID is configured.");
+                    alert("Google Client ID is not configured. Please set it in Settings before connecting.");
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return;
+                }
+                try {
+                    const tokens = await exchangeCodeForTokens(code, googleClientId);
+                    setGoogleFitData(tokens);
+                    sessionStorage.removeItem('ppl_google_fit_code_verifier');
+                } catch (err) {
+                    console.error("Error exchanging Google Fit code:", err);
+                    alert("Failed to connect to Google Fit. Please ensure the Client ID is configured correctly and try again.");
+                } finally {
+                    // Clean URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        };
+        handleOAuthRedirect();
+    }, [setGoogleFitData, googleClientId]);
+    
+    // Automatically sync steps when the app loads and is connected to Google Fit
+    useEffect(() => {
+        if (googleFitData) {
+            syncGoogleFitSteps();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [googleFitData]); // Runs when googleFitData is first loaded or changed
+
+    // --- WORKOUT SESSION MANAGEMENT ---
+    const startWorkout = (template: WorkoutTemplate, date?: string) => {
+        const sessionDate = date || getTodayDateString();
+        
+        const existingSession = sessions.find(s => s.date === sessionDate);
+        if (existingSession) {
+            setActiveSession(existingSession);
+            setView('WORKOUT_SESSION');
+            return;
+        }
+
+        const newSession: Session = {
+            id: `session-${Date.now()}`,
+            date: sessionDate,
+            templateId: template.id,
+            exercises: template.exercises.map(exTemplate => {
+                const exerciseDetails = allExercises.find(ex => ex.id === exTemplate.exerciseId);
+                return {
+                    id: exTemplate.exerciseId,
+                    name: exerciseDetails?.name || 'Unknown Exercise',
+                    muscleGroup: exerciseDetails?.muscleGroup || 'Unknown',
+                    sets: Array.from({ length: exTemplate.defaultSets }, (_, i) => ({
+                        id: `set-${Date.now()}-${i}`,
+                        reps: 0,
+                        weight: 0,
+                        volume: 0,
+                    })),
+                };
+            }),
+            status: 'in-progress',
+            unit: unit,
+        };
+        setSessions(prev => [...prev, newSession]);
+        setActiveSession(newSession);
+        setView('WORKOUT_SESSION');
+        setWorkoutSelectionModalOpen(false);
+    };
+
+    const updateActiveSession = (updatedSession: Session) => {
+        setActiveSession(updatedSession);
+        setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+    };
+
+    const exitWorkout = () => {
+        setActiveSession(null);
+        setView('DASHBOARD');
+    };
+    
+    // --- APP NAVIGATION & MODALS ---
+    const NAV_ITEMS = [
+        { view: 'DASHBOARD', icon: 'home', label: 'Dashboard' },
+        { view: 'STRATEGY', icon: 'clipboard', label: 'Strategy' },
+        { view: 'ADD_ACTION', icon: 'plus', label: 'Add' },
+        { view: 'NUTRITION', icon: 'utensils', label: 'Nutrition' },
+        { view: 'MORE', icon: 'cog', label: 'More' }
+    ] as const;
+
+    const handleNavClick = (targetView: typeof NAV_ITEMS[number]['view'] | 'ADD_ACTION') => {
+        if (targetView === 'ADD_ACTION') {
+            setAddActionModalOpen(true);
+        } else {
+            setView(targetView);
+        }
+    };
+    
+    const handleAddCustomFood = (food: FoodItem) => {
+        setFoodDatabase(prev => [...prev, food]);
+    };
+    
+    if (!profile || !profile.onboardingCompleted) {
+        return <Onboarding onSave={(p) => { setProfile({...p, onboardingCompleted: true}); }} theme={theme} setTheme={setTheme} palette={palette} setPalette={setPalette} />;
     }
     
-    const nextIndex = (lastTemplateIndex + 1) % workoutTemplates.length;
-    return workoutTemplates[nextIndex];
-  }, [sessions, workoutTemplates]);
-
-  const handleViewActivity = (tab: 'calories' | 'steps') => {
-    setInitialActivityTab(tab);
-    setView('ACTIVITY');
-  };
-  
-  if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-  
-  if (currentUser && !userProfile.onboardingCompleted) {
-    return <Onboarding 
-            onSave={handleSaveProfile} 
-            theme={theme}
-            setTheme={setTheme}
-            palette={palette}
-            setPalette={setPalette}
-           />;
-  }
-
-  const renderView = () => {
-    switch (view) {
-      case 'SESSION':
-        return activeSession ? (
-          <WorkoutSession
-            session={activeSession}
-            onUpdateSession={handleUpdateSession}
-            onExit={() => { setActiveSession(null); setView('DASHBOARD'); }}
-            unit={unit}
-            workoutTemplates={workoutTemplates}
-            userRatings={userRatings}
-            onRateExercise={setUserRatings}
-            imageCache={imageCache}
-            onCacheImage={setImageCache}
-          />
-        ) : <p>No active session. Go to Dashboard to start one.</p>;
-      case 'HISTORY':
-        return <History 
-                  sessions={sessions} 
-                  unit={unit} 
-                  workoutTemplates={workoutTemplates} 
-                  dailyLogs={dailyLogs}
-                />;
-      case 'PROFILE':
-        return <Profile 
-                  profile={userProfile} 
-                  setProfile={setProfile}
-                  unit={unit}
-                  sessions={sessions}
-                />;
-       case 'SETTINGS':
-        return <Settings 
-                  theme={theme}
-                  setTheme={setTheme}
-                  unit={unit}
-                  setUnit={setUnit}
-                  palette={palette}
-                  setPalette={setPalette}
-                  onLogout={handleLogout}
-                />;
-      case 'STRATEGY':
-        return <Strategy 
-                 currentTemplates={workoutTemplates} 
-                 onSaveTemplates={handleSaveTemplates}
-                 sessions={sessions}
-                 onStartWorkoutRequest={handleStartWorkoutRequest}
-                 onEditSession={handleEditSession}
-                />;
-      case 'MORE':
-        return <More onViewChange={setView} onLogout={handleLogout} />;
-      case 'NUTRITION':
-        return <NutritionTracker dailyLog={todayLog} onUpdateLog={handleUpdateLog} foodDatabase={foodDatabase} onAddCustomFood={handleAddCustomFood} userGoals={userProfile.goals} />;
-
-      case 'ACTIVITY':
-          return <MyActivity 
-                    dailyLogs={dailyLogs}
-                    foodDatabase={foodDatabase}
-                    userGoals={userProfile.goals}
-                    onBack={() => setView('DASHBOARD')}
-                    initialTab={initialActivityTab}
-                  />;
-
-      case 'DASHBOARD':
-      default:
-        return <Dashboard 
-                 sessions={sessions}
-                 profile={userProfile}
-                 dailyLog={todayLog}
-                 allDailyLogs={dailyLogs}
-                 onUpdateLog={handleUpdateLog}
-                 onStartWorkout={(template) => startWorkout(template)} 
-                 nextWorkoutTemplate={nextWorkoutTemplate}
-                 onChooseWorkout={() => handleStartWorkoutRequest(new Date().toISOString().split('T')[0])}
-                 userGoals={userProfile.goals}
-                 foodDatabase={foodDatabase}
-                 onViewActivity={handleViewActivity}
-                 onViewProfile={() => setView('PROFILE')}
-               />;
+    const renderView = () => {
+        switch(view) {
+            case 'DASHBOARD': return <Dashboard 
+                                        profile={profile}
+                                        sessions={sessions}
+                                        dailyLog={todaysLog}
+                                        allDailyLogs={dailyLogs}
+                                        onUpdateLog={updateTodaysLog}
+                                        nextWorkoutTemplate={nextWorkoutTemplate}
+                                        onStartWorkout={(template) => startWorkout(template)}
+                                        onChooseWorkout={() => setWorkoutSelectionModalOpen(true)}
+                                        userGoals={profile.goals}
+                                        foodDatabase={foodDatabase}
+                                        onViewActivity={(tab) => { setView('ACTIVITY'); }}
+                                        onViewProfile={() => setView('PROFILE')}
+                                        isGoogleFitConnected={!!googleFitData}
+                                        isSyncingSteps={isSyncingSteps}
+                                        syncGoogleFitSteps={syncGoogleFitSteps}
+                                        onGoToSettings={() => setView('SETTINGS')}
+                                     />;
+            case 'STRATEGY': return <Strategy 
+                                        currentTemplates={workoutTemplates} 
+                                        onSaveTemplates={setWorkoutTemplates}
+                                        sessions={sessions}
+                                        onStartWorkoutRequest={(date) => {
+                                            const dayName = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }) as any;
+                                            const template = workoutTemplates.find(t => t.dayOfWeek === dayName);
+                                            if (template) {
+                                                startWorkout(template, date);
+                                            } else {
+                                                alert("No workout template found for this day.");
+                                            }
+                                        }}
+                                        onEditSession={(sessionId) => {
+                                            const session = sessions.find(s => s.id === sessionId);
+                                            if (session) {
+                                                setActiveSession(session);
+                                                setView('WORKOUT_SESSION');
+                                            }
+                                        }}
+                                    />;
+            case 'NUTRITION': return <NutritionTracker 
+                                        dailyLog={todaysLog} 
+                                        onUpdateLog={updateTodaysLog}
+                                        foodDatabase={foodDatabase}
+                                        onAddCustomFood={handleAddCustomFood}
+                                        userGoals={profile.goals}
+                                      />;
+            case 'HISTORY': return <History sessions={sessions} unit={unit} workoutTemplates={workoutTemplates} dailyLogs={dailyLogs}/>;
+            case 'SETTINGS': return <Settings 
+                                        theme={theme} setTheme={setTheme}
+                                        unit={unit} setUnit={setUnit}
+                                        palette={palette} setPalette={setPalette}
+                                        onLogout={onLogout}
+                                        isGoogleFitConnected={!!googleFitData}
+                                        onConnectGoogleFit={handleConnectGoogleFit}
+                                        onDisconnectGoogleFit={handleDisconnectGoogleFit}
+                                        googleClientId={googleClientId}
+                                        setGoogleClientId={setGoogleClientId}
+                                    />;
+            case 'MORE': return <More onViewChange={setView} onLogout={onLogout} />;
+            case 'PROFILE': return <Profile profile={profile} setProfile={setProfile} unit={unit} sessions={sessions} />;
+            case 'ACTIVITY': return <MyActivity dailyLogs={dailyLogs} foodDatabase={foodDatabase} userGoals={profile.goals} onBack={() => setView('DASHBOARD')} initialTab='calories' />;
+            default: return <Dashboard 
+                                profile={profile}
+                                sessions={sessions}
+                                dailyLog={todaysLog}
+                                allDailyLogs={dailyLogs}
+                                onUpdateLog={updateTodaysLog}
+                                nextWorkoutTemplate={nextWorkoutTemplate}
+                                onStartWorkout={(template) => startWorkout(template)}
+                                onChooseWorkout={() => setWorkoutSelectionModalOpen(true)}
+                                userGoals={profile.goals}
+                                foodDatabase={foodDatabase}
+                                onViewActivity={(tab) => { setView('ACTIVITY'); }}
+                                onViewProfile={() => setView('PROFILE')}
+                                isGoogleFitConnected={!!googleFitData}
+                                isSyncingSteps={isSyncingSteps}
+                                syncGoogleFitSteps={syncGoogleFitSteps}
+                                onGoToSettings={() => setView('SETTINGS')}
+                             />;
+        }
     }
-  };
+    
+    if (activeSession) {
+        return (
+             <div className="container mx-auto px-4 pt-4">
+                <WorkoutSession 
+                    session={activeSession}
+                    onUpdateSession={updateActiveSession}
+                    onExit={exitWorkout}
+                    unit={unit}
+                    workoutTemplates={workoutTemplates}
+                    userRatings={userRatings}
+                    onRateExercise={setUserRatings}
+                />
+             </div>
+        )
+    }
 
-  const isFullScreenView = view === 'SESSION' || view === 'ACTIVITY';
+    return (
+        <div className="min-h-screen">
+            <div className="container mx-auto px-4 pt-4 pb-28">
+                {renderView()}
+            </div>
 
-  return (
-    <div className={`min-h-screen bg-bg-base text-text-base`}>
-      <div className={`container mx-auto p-4 ${!isFullScreenView ? 'pb-24' : ''}`}>
-        <main>{renderView()}</main>
-      </div>
+            <div className="fixed bottom-0 left-0 right-0 z-40">
+                <div className="container mx-auto px-4">
+                    <div className="bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 rounded-t-xl shadow-lg h-20 grid grid-cols-5 items-center">
+                        {NAV_ITEMS.map(item => (
+                            <button
+                                key={item.view}
+                                onClick={() => handleNavClick(item.view === 'ADD_ACTION' ? 'ADD_ACTION' : item.view)}
+                                className={`flex flex-col items-center justify-center h-full transition-colors ${
+                                    view === item.view ? 'text-primary' : 'text-text-muted hover:text-text-base'
+                                } ${item.view === 'ADD_ACTION' ? '-mt-8' : ''}`}
+                            >
+                                {item.view === 'ADD_ACTION' ? (
+                                    <div className="w-16 h-16 rounded-full bg-primary text-primary-content flex items-center justify-center shadow-lg border-4 border-bg-base">
+                                        <Icon name={item.icon} className="w-8 h-8"/>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Icon name={item.icon} className="w-7 h-7" />
+                                        <span className="text-xs font-semibold mt-1">{item.label}</span>
+                                    </>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
-      {!isFullScreenView && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-bg-muted border-t border-border">
-          <div className="container mx-auto px-4">
-              <div className="flex justify-around items-center h-16">
-                  <BottomNavItem icon="lock" label="lockIn" active={view === 'DASHBOARD'} onClick={() => setView('DASHBOARD')} />
-                  <BottomNavItem icon="food" label="Food Log" active={view === 'NUTRITION'} onClick={() => setView('NUTRITION')} />
-                  <button 
-                      onClick={() => setAddActionModalOpen(true)}
-                      className="bg-primary text-primary-content rounded-full w-14 h-14 flex items-center justify-center -mt-6 shadow-lg hover:scale-110 transition-transform"
-                      aria-label="Add new entry"
-                  >
-                      <Icon name="plus" className="w-8 h-8"/>
-                  </button>
-                  <BottomNavItem icon="clipboard" label="Strategy" active={view === 'STRATEGY'} onClick={() => setView('STRATEGY')} />
-                  <BottomNavItem icon="cog" label="More" active={view === 'MORE'} onClick={() => setView('MORE')} />
-              </div>
-          </div>
+            <AddActionModal
+                isOpen={isAddActionModalOpen}
+                onClose={() => setAddActionModalOpen(false)}
+                onLogFood={() => { setAddActionModalOpen(false); setView('NUTRITION'); }}
+                onStartWorkout={() => { setAddActionModalOpen(false); setWorkoutSelectionModalOpen(true); }}
+            />
+            <WorkoutSelectionModal
+                isOpen={isWorkoutSelectionModalOpen}
+                onClose={() => setWorkoutSelectionModalOpen(false)}
+                onSelect={(template) => startWorkout(template)}
+                workoutTemplates={workoutTemplates}
+                suggestedTemplate={nextWorkoutTemplate || undefined}
+            />
         </div>
-      )}
-
-      <WorkoutSelectionModal
-        isOpen={isWorkoutSelectionModalOpen}
-        onClose={() => setWorkoutSelectionModalOpen(false)}
-        onSelect={handleSelectWorkout}
-        workoutTemplates={workoutTemplates}
-      />
-      
-      <AddActionModal 
-        isOpen={isAddActionModalOpen}
-        onClose={() => setAddActionModalOpen(false)}
-        onLogFood={() => { setView('NUTRITION'); setAddActionModalOpen(false); }}
-        onStartWorkout={() => { handleStartWorkoutRequest(new Date().toISOString().split('T')[0]); setAddActionModalOpen(false); }}
-      />
-    </div>
-  );
-}
+    );
+};
 
 export default App;

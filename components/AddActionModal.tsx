@@ -1,5 +1,6 @@
+
 import React, { ReactNode } from 'react';
-import Icon from './common/Icon';
+import Icon from './common/Icon.tsx';
 
 interface AddActionModalProps {
   isOpen: boolean;

@@ -14,13 +14,23 @@ interface OnboardingProps {
     setPalette: (palette: string) => void;
 }
 
-const TOTAL_STEPS = 11;
+const TOTAL_STEPS = 12;
 
 const Onboarding: React.FC<OnboardingProps> = ({ onSave, theme, setTheme, palette, setPalette }) => {
     const [step, setStep] = useState(1);
     const [data, setData] = useState<Partial<UserProfile>>({
         heightUnit: 'cm',
-        goals: { calorieTarget: 2000, stepTarget: 10000 }
+        measurements: {},
+        goals: {
+            calorieTarget: 2200,
+            proteinTarget: 165,
+            fatTarget: 73,
+            carbsTarget: 220,
+            stepTarget: 10000,
+            milesTarget: 5,
+            caloriesBurnedTarget: 400,
+            moveMinutesTarget: 100,
+        }
     });
 
     const next = () => setStep(s => Math.min(s + 1, TOTAL_STEPS + 1));
@@ -63,11 +73,12 @@ const Onboarding: React.FC<OnboardingProps> = ({ onSave, theme, setTheme, palett
             case 5: return <StepWeight value={data.weight} onSelect={(weight) => { updateData({ weight }); next(); }} />;
             case 6: return <StepBodyFat value={data.bodyFat} onSelect={(bodyFat) => { updateData({ bodyFat }); next(); }} />;
             case 7: return <StepActivity value={data.activityLevel} onSelect={handleActivitySelect} />;
-            case 8: return <StepExperience lifting={data.liftingExperience} cardio={data.cardioExperience} onSelect={(lifting, cardio) => { updateData({ liftingExperience: lifting, cardioExperience: cardio }); next(); }} />;
-            case 9: return <StepFrequency value={data.exerciseFrequency} onSelect={(exerciseFrequency) => { updateData({ exerciseFrequency }); next(); }} />;
-            case 10: return <StepGoals tdee={estimatedTDEE} goals={data.goals} onSelect={(goals) => { updateData({ goals }); next(); }} />;
-            case 11: return <StepTheme theme={theme} setTheme={setTheme} palette={palette} setPalette={setPalette} onSelect={next} />;
-            case 12: return <StepSummary onFinish={handleFinish} />;
+            case 8: return <StepExperienceLifting value={data.liftingExperience} onSelect={(lifting) => { updateData({ liftingExperience: lifting }); next(); }} />;
+            case 9: return <StepExperienceCardio value={data.cardioExperience} onSelect={(cardio) => { updateData({ cardioExperience: cardio }); next(); }} />;
+            case 10: return <StepFrequency value={data.exerciseFrequency} onSelect={(exerciseFrequency) => { updateData({ exerciseFrequency }); next(); }} />;
+            case 11: return <StepGoals tdee={estimatedTDEE} goals={data.goals} onSelect={(goals) => { updateData({ goals }); next(); }} />;
+            case 12: return <StepTheme theme={theme} setTheme={setTheme} palette={palette} setPalette={setPalette} onSelect={next} />;
+            case 13: return <StepSummary onFinish={handleFinish} />;
             default: return null;
         }
     }
@@ -282,30 +293,25 @@ const StepActivity: React.FC<{ value?: ActivityLevel; onSelect: (level: Activity
     </div>
 );
 
-const StepExperience: React.FC<{ lifting?: ExperienceLevel, cardio?: ExperienceLevel, onSelect: (lifting: ExperienceLevel, cardio: ExperienceLevel) => void }> = ({ onSelect }) => {
-    const [lifting, setLifting] = useState<ExperienceLevel>('beginner');
-    const [cardio, setCardio] = useState<ExperienceLevel>('beginner');
+const StepExperienceLifting: React.FC<{ value?: ExperienceLevel; onSelect: (lifting: ExperienceLevel) => void; }> = ({ value, onSelect }) => {
     const options: ExperienceLevel[] = ['none', 'beginner', 'intermediate', 'advanced'];
-
     return (
         <div className="text-center">
-            <h1 className="text-3xl font-bold mb-8">What is your experience level?</h1>
-            <div className="max-w-md mx-auto space-y-8">
-                <div>
-                    <h2 className="text-xl font-semibold mb-4">With Lifting</h2>
-                    <div className="space-y-3">
-                    {options.map(opt => <OptionButton key={opt} selected={lifting === opt} onClick={() => setLifting(opt)}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</OptionButton>)}
-                    </div>
-                </div>
-                 <div>
-                    <h2 className="text-xl font-semibold mb-4">With Cardio</h2>
-                    <div className="space-y-3">
-                     {options.map(opt => <OptionButton key={opt} selected={cardio === opt} onClick={() => setCardio(opt)}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</OptionButton>)}
-                    </div>
-                </div>
+            <h1 className="text-3xl font-bold mb-8">What is your lifting experience?</h1>
+            <div className="space-y-4 max-w-sm mx-auto">
+                {options.map(opt => <OptionButton key={opt} selected={value === opt} onClick={() => onSelect(opt)}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</OptionButton>)}
             </div>
-            <div className="mt-8 max-w-md mx-auto">
-                <NextButton onClick={() => onSelect(lifting, cardio)}>Next</NextButton>
+        </div>
+    );
+};
+
+const StepExperienceCardio: React.FC<{ value?: ExperienceLevel; onSelect: (cardio: ExperienceLevel) => void; }> = ({ value, onSelect }) => {
+    const options: ExperienceLevel[] = ['none', 'beginner', 'intermediate', 'advanced'];
+    return (
+        <div className="text-center">
+            <h1 className="text-3xl font-bold mb-8">What is your cardio experience?</h1>
+            <div className="space-y-4 max-w-sm mx-auto">
+                {options.map(opt => <OptionButton key={opt} selected={value === opt} onClick={() => onSelect(opt)}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</OptionButton>)}
             </div>
         </div>
     );
@@ -338,6 +344,26 @@ const StepGoals: React.FC<{ tdee: number, goals?: UserGoals, onSelect: (goals: U
         }
     }, [goals?.stepTarget]);
 
+    const handleSelect = () => {
+        const proteinTarget = Math.round((calories * 0.3) / 4);
+        const fatTarget = Math.round((calories * 0.3) / 9);
+        const carbsTarget = Math.round((calories * 0.4) / 4);
+        const milesTarget = parseFloat((steps / 2000).toFixed(1));
+        const caloriesBurnedTarget = Math.round(steps * 0.04);
+        const moveMinutesTarget = Math.round(steps / 100);
+        
+        onSelect({ 
+            calorieTarget: calories, 
+            stepTarget: steps,
+            proteinTarget,
+            fatTarget,
+            carbsTarget,
+            milesTarget,
+            caloriesBurnedTarget,
+            moveMinutesTarget
+        });
+    };
+
 
     return (
          <div className="text-center">
@@ -369,7 +395,7 @@ const StepGoals: React.FC<{ tdee: number, goals?: UserGoals, onSelect: (goals: U
             </div>
 
             <div className="mt-8 max-w-sm mx-auto">
-                <NextButton onClick={() => onSelect({ calorieTarget: calories, stepTarget: steps })}>Next</NextButton>
+                <NextButton onClick={handleSelect}>Next</NextButton>
             </div>
         </div>
     );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 // FIX: Corrected import path for types
 import type { UserProfile, WeightUnit, BodyFatOption, Session } from '../types';
@@ -54,12 +53,20 @@ const calculateWorkoutStreak = (sessions: Session[]): number => {
 
 const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editableProfile, setEditableProfile] = useState<UserProfile>(profile);
+  
+  // Create a safe version of the profile to ensure `measurements` exists.
+  // This prevents runtime errors if the data from localStorage is malformed from previous versions.
+  const safeProfile = useMemo(() => ({
+    ...profile,
+    measurements: profile.measurements || {},
+  }), [profile]);
+
+  const [editableProfile, setEditableProfile] = useState<UserProfile>(safeProfile);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setEditableProfile(profile);
-  }, [profile]);
+    setEditableProfile(safeProfile);
+  }, [safeProfile]);
 
   const handleSave = () => {
     setProfile({
@@ -70,7 +77,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
   };
 
   const handleCancel = () => {
-    setEditableProfile(profile);
+    setEditableProfile(safeProfile);
     setIsEditing(false);
   };
 
@@ -143,7 +150,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
         <div className="flex justify-between items-start">
             <div>
                  <h2 className="text-3xl font-bold">My Profile</h2>
-                 {profile.lastUpdated && !isEditing && <p className="text-sm text-text-muted">Last updated: {new Date(profile.lastUpdated).toLocaleDateString()}</p>}
+                 {safeProfile.lastUpdated && !isEditing && <p className="text-sm text-text-muted">Last updated: {new Date(safeProfile.lastUpdated).toLocaleDateString()}</p>}
             </div>
             {!isEditing && (
             <button onClick={() => setIsEditing(true)} className="bg-primary hover:opacity-90 text-primary-content font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
@@ -156,7 +163,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
         <div className="flex flex-col items-center gap-4 bg-bg-muted p-6 rounded-lg">
             <div className="relative">
                 <img 
-                    src={isEditing ? editableProfile.profileImage : profile.profileImage || `https://api.dicebear.com/8.x/initials/svg?seed=${profile.name}`} 
+                    src={isEditing ? editableProfile.profileImage : safeProfile.profileImage || `https://api.dicebear.com/8.x/initials/svg?seed=${safeProfile.name}`} 
                     alt="Profile" 
                     className="w-32 h-32 rounded-full object-cover bg-bg-subtle border-4 border-bg-base shadow-lg"
                 />
@@ -171,7 +178,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
             </div>
             {isEditing ? 
                 <input type="text" value={editableProfile.name || ''} onChange={(e) => setEditableProfile(p => ({...p, name: e.target.value}))} className="w-full max-w-xs text-center text-2xl font-bold bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" />
-                 : <h3 className="text-2xl font-bold">{profile.name}</h3>
+                 : <h3 className="text-2xl font-bold">{safeProfile.name}</h3>
             }
         </div>
 
@@ -188,15 +195,15 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
             <div className="grid grid-cols-2 md:grid-cols-2 gap-6">
                 <div>
                 <label className="block text-sm font-medium text-text-muted mb-1">Age</label>
-                {isEditing ? <input type="number" value={editableProfile.age || ''} onChange={(e) => handleInputChange('age', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(profile.age)}</p>}
+                {isEditing ? <input type="number" value={editableProfile.age || ''} onChange={(e) => handleInputChange('age', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(safeProfile.age)}</p>}
                 </div>
                  <div>
                 <label className="block text-sm font-medium text-text-muted mb-1">Weight ({unit})</label>
-                {isEditing ? <input type="number" value={editableProfile.weight || ''} onChange={(e) => handleInputChange('weight', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(profile.weight)}</p>}
+                {isEditing ? <input type="number" value={editableProfile.weight || ''} onChange={(e) => handleInputChange('weight', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(safeProfile.weight)}</p>}
                 </div>
                 <div className="col-span-2">
-                <label className="block text-sm font-medium text-text-muted mb-1">Height ({isEditing ? editableProfile.heightUnit : profile.heightUnit})</label>
-                {isEditing ? <div className="flex gap-2"><input type="number" value={editableProfile.height || ''} onChange={(e) => handleInputChange('height', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> <UnitToggle unit={editableProfile.heightUnit} onToggle={(unit) => setEditableProfile(p => ({...p, heightUnit: unit}))} /></div> : <p className="text-lg font-semibold">{renderValue(profile.height, profile.heightUnit)}</p>}
+                <label className="block text-sm font-medium text-text-muted mb-1">Height ({isEditing ? editableProfile.heightUnit : safeProfile.heightUnit})</label>
+                {isEditing ? <div className="flex gap-2"><input type="number" value={editableProfile.height || ''} onChange={(e) => handleInputChange('height', e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> <UnitToggle unit={editableProfile.heightUnit} onToggle={(unit) => setEditableProfile(p => ({...p, heightUnit: unit}))} /></div> : <p className="text-lg font-semibold">{renderValue(safeProfile.height, safeProfile.heightUnit)}</p>}
                 </div>
             </div>
             
@@ -210,8 +217,8 @@ const Profile: React.FC<ProfileProps> = ({ profile, setProfile, unit, sessions }
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {measurementFields.map(f => (
                     <div key={f.key}>
-                    <label className="block text-sm text-text-muted mb-1">{f.label} ({isEditing ? editableProfile.measurementUnit : profile.measurementUnit})</label>
-                    {isEditing ? <input type="number" value={editableProfile.measurements[f.key] || ''} onChange={(e) => handleMeasurementChange(f.key, e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(profile.measurements[f.key])}</p>}
+                    <label className="block text-sm text-text-muted mb-1">{f.label} ({isEditing ? editableProfile.measurementUnit : safeProfile.measurementUnit})</label>
+                    {isEditing ? <input type="number" value={editableProfile.measurements[f.key] || ''} onChange={(e) => handleMeasurementChange(f.key, e.target.value)} className="w-full bg-bg-base rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary" /> : <p className="text-lg font-semibold">{renderValue(safeProfile.measurements[f.key])}</p>}
                     </div>
                 ))}
                 </div>

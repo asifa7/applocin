@@ -1,7 +1,8 @@
 
+
 import React, { useMemo } from 'react';
-import type { DailyLog, FoodItem, UserGoals } from '../types';
-import Icon from './common/Icon';
+import type { DailyLog, FoodItem, UserGoals } from '../types.ts';
+import Icon from './common/Icon.tsx';
 
 const MiniProgressRing: React.FC<{ percentage: number; size: number; strokeWidth: number; color: string; }> = ({ percentage, size, strokeWidth, color }) => {
     const radius = (size - strokeWidth) / 2;

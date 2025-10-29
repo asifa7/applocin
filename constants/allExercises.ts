@@ -1,4 +1,5 @@
 
+
 // FIX: Corrected import path for types
 import type { Exercise } from '../types';
 
@@ -450,3 +451,11 @@ export const ALL_EXERCISES_BY_GROUP: ExerciseGroup[] = [
         ],
     },
 ];
+
+export const allExercises: Exercise[] = ALL_EXERCISES_BY_GROUP.flatMap(group =>
+    group.exercises.map(ex => ({ ...ex, muscleGroup: group.group }))
+);
+
+export const allExercisesMap = new Map<string, Exercise>(
+    allExercises.map(ex => [ex.id, ex])
+);

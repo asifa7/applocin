@@ -1,5 +1,6 @@
+
 import React from 'react';
-import type { BodyFatOption } from '../types';
+import type { BodyFatOption } from '../types.ts';
 
 const BodyFat_3_4 = () => (
   <svg
@@ -122,7 +123,6 @@ const BodyFat_18_23 = () => (
     </g>
   </svg>
 );
-
 const BodyFat_24_29 = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

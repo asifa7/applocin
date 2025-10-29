@@ -1,9 +1,8 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 // FIX: Corrected import path for types
 import type { WeightUnit } from '../types';
 import { palettes } from '../constants/palettes';
-import Icon from './common/Icon';
 
 interface SettingsProps {
   theme: 'light' | 'dark';
@@ -16,28 +15,9 @@ interface SettingsProps {
   isGoogleFitConnected: boolean;
   onConnectGoogleFit: () => void;
   onDisconnectGoogleFit: () => void;
-  googleClientId: string | null;
-  setGoogleClientId: (id: string | null) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ 
-    theme, setTheme, unit, setUnit, palette, setPalette, onLogout, 
-    isGoogleFitConnected, onConnectGoogleFit, onDisconnectGoogleFit,
-    googleClientId, setGoogleClientId
-}) => {
-  const [localClientId, setLocalClientId] = useState(googleClientId || '');
-
-  const handleSaveClientId = () => {
-      if (localClientId.trim()) {
-          setGoogleClientId(localClientId.trim());
-          alert('Client ID Saved!');
-      } else {
-          setGoogleClientId(null);
-          alert('Client ID Cleared!');
-      }
-  };
-
-
+const Settings: React.FC<SettingsProps> = ({ theme, setTheme, unit, setUnit, palette, setPalette, onLogout, isGoogleFitConnected, onConnectGoogleFit, onDisconnectGoogleFit }) => {
   return (
     <div className="space-y-8">
       <div>
@@ -93,56 +73,25 @@ const Settings: React.FC<SettingsProps> = ({
                       </button>
                   </div>
               </div>
-
-               <div className="pt-8 border-t border-border">
-                  <h4 className="font-semibold text-lg mb-3">API Configuration</h4>
-                  <p className="text-text-muted mb-3 text-sm">To use Google Fit, you must provide your own OAuth 2.0 Client ID from the Google Cloud Console.</p>
-                  <div className="space-y-2">
-                      <label htmlFor="google-client-id" className="text-sm font-medium text-text-muted">Google Client ID</label>
-                      <div className="flex gap-2">
-                          <input
-                              id="google-client-id"
-                              type="text"
-                              value={localClientId}
-                              onChange={(e) => setLocalClientId(e.target.value)}
-                              placeholder="xxxxxxxx.apps.googleusercontent.com"
-                              className="w-full bg-bg-subtle rounded-md py-2 px-3 border-transparent focus:ring-2 focus:ring-primary"
-                          />
-                          <button onClick={handleSaveClientId} className="bg-primary hover:opacity-90 text-primary-content font-bold py-2 px-4 rounded-lg transition-colors">
-                              Save
-                          </button>
-                      </div>
-                  </div>
-              </div>
-
+              
               <div className="pt-8 border-t border-border">
                 <h4 className="font-semibold text-lg mb-3">Integrations</h4>
-                <div className="bg-bg-subtle p-4 rounded-lg">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h5 className="font-semibold text-base">Google Fit</h5>
-                            <p className="text-sm text-text-muted">
-                                {isGoogleFitConnected ? 'Step count is being synced' : 'Not Connected'}
-                            </p>
-                        </div>
-                        {isGoogleFitConnected ? (
-                            <button onClick={onDisconnectGoogleFit} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 font-bold py-2 px-4 rounded-lg transition-colors">
-                                Disconnect
-                            </button>
-                        ) : (
-                            <button 
-                                onClick={onConnectGoogleFit} 
-                                disabled={!googleClientId}
-                                className="bg-primary hover:opacity-90 text-primary-content font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-bg-subtle disabled:text-text-muted disabled:cursor-not-allowed"
-                            >
-                                Connect
-                            </button>
-                        )}
-                    </div>
-                    {!googleClientId && !isGoogleFitConnected && (
-                        <p className="text-xs text-yellow-500 mt-2">
-                            A Google Client ID must be saved in 'API Configuration' above to enable Google Fit.
+                <p className="text-text-muted mb-3 text-sm">Connect your accounts to sync data automatically.</p>
+                <div className="bg-bg-subtle p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <h5 className="font-semibold text-base">Google Fit</h5>
+                        <p className="text-sm text-text-muted">
+                            {isGoogleFitConnected ? 'Step count is being synced' : 'Not Connected'}
                         </p>
+                    </div>
+                    {isGoogleFitConnected ? (
+                        <button onClick={onDisconnectGoogleFit} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 font-bold py-2 px-4 rounded-lg transition-colors">
+                            Disconnect
+                        </button>
+                    ) : (
+                        <button onClick={onConnectGoogleFit} className="bg-primary hover:opacity-90 text-primary-content font-bold py-2 px-4 rounded-lg transition-colors">
+                            Connect
+                        </button>
                     )}
                 </div>
               </div>

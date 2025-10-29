@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 // FIX: Corrected import path for types
-import type { WorkoutTemplate, Session } from '../types';
-import Icon from './common/Icon';
+import type { WorkoutTemplate, Session } from '../types.ts';
+import Icon from './common/Icon.tsx';
 
 interface CalendarViewProps {
   sessions: Session[];

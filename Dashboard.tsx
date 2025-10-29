@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef, TouchEvent } from 'react';
-import type { Session, WorkoutTemplate, UserGoals, DailyLog, FoodItem, UserProfile } from '../types.ts';
-import Icon from './common/Icon.tsx';
+import type { Session, WorkoutTemplate, UserGoals, DailyLog, FoodItem, UserProfile } from '../types';
+import Icon from './common/Icon';
 
 const ProgressRing: React.FC<{ progress: number }> = ({ progress }) => {
   const safeProgress = Math.max(0, Math.min(progress, 100));
@@ -158,7 +158,6 @@ const StepsCard: React.FC<{ dailyLog: DailyLog; userGoals: UserGoals }> = ({ dai
 };
 
 
-// FIX: Added missing props for Google Fit integration to the Omit type.
 const SwipeableDashboard: React.FC<Omit<DashboardProps, 'profile' | 'sessions' | 'onUpdateLog' | 'nextWorkoutTemplate' | 'onStartWorkout' | 'onChooseWorkout' | 'onViewActivity' | 'onViewProfile' | 'allDailyLogs' | 'isGoogleFitConnected' | 'isSyncingSteps' | 'syncGoogleFitSteps' | 'onGoToSettings'>> = ({ dailyLog, userGoals, foodDatabase }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const touchStartX = useRef(0);
@@ -205,7 +204,6 @@ const SwipeableDashboard: React.FC<Omit<DashboardProps, 'profile' | 'sessions' |
 };
 
 
-// FIX: Added missing props for Google Fit integration to the DashboardProps interface.
 interface DashboardProps {
   sessions: Session[];
   dailyLog: DailyLog;
@@ -225,7 +223,6 @@ interface DashboardProps {
   onGoToSettings: () => void;
 }
 
-// FIX: Added GoogleFitCard component to display connection status and sync button.
 const GoogleFitCard: React.FC<{
   isConnected: boolean;
   isSyncing: boolean;
@@ -257,7 +254,6 @@ const GoogleFitCard: React.FC<{
     )
 }
 
-// FIX: Updated component to accept Google Fit props and render the GoogleFitCard instead of manual step input.
 const Dashboard: React.FC<DashboardProps> = ({ sessions, dailyLog, allDailyLogs, onUpdateLog, nextWorkoutTemplate, onStartWorkout, onChooseWorkout, userGoals, foodDatabase, onViewActivity, onViewProfile, profile, isGoogleFitConnected, isSyncingSteps, syncGoogleFitSteps, onGoToSettings }) => {
   return (
     <div className="space-y-6">

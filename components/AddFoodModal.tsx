@@ -1,11 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
-import Modal from './common/Modal';
+import Modal from './common/Modal.tsx';
 // FIX: Corrected import path for types
-import type { FoodItem } from '../types';
-import Icon from './common/Icon';
-// FIX: Corrected import path for geminiService
-import { getNutritionInfo } from '../services/geminiService';
+import type { FoodItem } from '../types.ts';
+import Icon from './common/Icon.tsx';
 
 interface AddFoodModalProps {
   isOpen: boolean;

@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
 // FIX: Corrected import path for types
-import type { UserRatings } from '../types';
-import { ALL_EXERCISES_BY_GROUP } from '../constants/allExercises';
-import Modal from './common/Modal';
-import Icon from './common/Icon';
-import StarRating from './common/StarRating';
+import type { UserRatings } from '../types.ts';
+import { ALL_EXERCISES_BY_GROUP } from '../constants/allExercises.ts';
+import Modal from './common/Modal.tsx';
+import Icon from './common/Icon.tsx';
+import StarRating from './common/StarRating.tsx';
 
 interface AddExerciseModalProps {
   isOpen: boolean;

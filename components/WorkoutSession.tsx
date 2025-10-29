@@ -5,8 +5,8 @@ import type { Session, SessionExercise, SetEntry, WeightUnit, WorkoutTemplate, U
 import ExerciseCard from './ExerciseCard';
 import Icon from './common/Icon';
 import AddExerciseModal from './AddExerciseModal';
-// FIX: Corrected import path for App to access allExercisesMap
-import { allExercisesMap } from '../App';
+// FIX: Corrected import path to get exercise data from constants
+import { allExercisesMap } from '../constants/allExercises';
 
 interface WorkoutSessionProps {
   session: Session;
@@ -16,11 +16,9 @@ interface WorkoutSessionProps {
   workoutTemplates: WorkoutTemplate[];
   userRatings: UserRatings;
   onRateExercise: React.Dispatch<React.SetStateAction<UserRatings>>;
-  imageCache: {[exerciseName: string]: string};
-  onCacheImage: React.Dispatch<React.SetStateAction<{[exerciseName: string]: string}>>;
 }
 
-const WorkoutSession: React.FC<WorkoutSessionProps> = ({ session, onUpdateSession, onExit, unit, workoutTemplates, userRatings, onRateExercise, imageCache, onCacheImage }) => {
+const WorkoutSession: React.FC<WorkoutSessionProps> = ({ session, onUpdateSession, onExit, unit, workoutTemplates, userRatings, onRateExercise }) => {
   const [isAddExerciseModalOpen, setAddExerciseModalOpen] = useState(false);
 
   const updateSet = (exerciseId: string, setId: string, newSetData: Partial<SetEntry>) => {
@@ -128,8 +126,6 @@ const WorkoutSession: React.FC<WorkoutSessionProps> = ({ session, onUpdateSessio
               onUpdateSet={updateSet}
               onAddSet={addSet}
               onRemoveSet={removeSet}
-              imageCache={imageCache}
-              onCacheImage={onCacheImage}
             />
           ))}
         </div>

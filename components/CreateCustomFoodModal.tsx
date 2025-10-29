@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import Modal from './common/Modal';
+import Modal from './common/Modal.tsx';
 // FIX: Corrected import path for types
-import type { FoodItem } from '../types';
+import type { FoodItem } from '../types.ts';
 
 interface CreateCustomFoodModalProps {
   isOpen: boolean;
