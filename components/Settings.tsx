@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 // FIX: Corrected import path for types
 import type { WeightUnit } from '../types';
@@ -56,28 +57,6 @@ const Settings: React.FC<SettingsProps> = ({
                       <button onClick={() => setTheme('dark')} className={`flex-1 p-3 rounded-md text-center font-semibold transition-all ${theme === 'dark' ? 'bg-primary text-primary-content ring-2 ring-offset-2 ring-offset-bg-muted ring-primary' : 'bg-bg-subtle hover:bg-border'}`}>
                           <i className="fas fa-moon mr-2"></i> Dark
                       </button>
-                  </div>
-              </div>
-
-              <div className="pt-8 border-t border-border">
-                  <h4 className="font-semibold text-lg mb-3">Color Palette</h4>
-                  <p className="text-text-muted mb-3 text-sm">Choose your favorite color scheme.</p>
-                  <div className="flex flex-wrap gap-4">
-                      {palettes.map(p => (
-                          <button
-                              key={p.name}
-                              onClick={() => setPalette(p.name)}
-                              className={`p-2 rounded-lg border-2 transition-all ${palette === p.name ? 'border-primary' : 'border-transparent hover:border-border'}`}
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className="flex -space-x-2">
-                                      <div className="w-6 h-6 rounded-full border-2 border-bg-muted" style={{ backgroundColor: `rgb(${p[theme]['primary']})` }}></div>
-                                      <div className="w-6 h-6 rounded-full border-2 border-bg-muted" style={{ backgroundColor: `rgb(${p[theme]['accent']})` }}></div>
-                                  </div>
-                                  <span className="font-semibold pr-2">{p.name}</span>
-                              </div>
-                          </button>
-                      ))}
                   </div>
               </div>
 

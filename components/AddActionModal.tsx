@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 import Icon from './common/Icon.tsx';
 
@@ -34,7 +33,7 @@ const AddActionModal: React.FC<AddActionModalProps> = ({ isOpen, onClose, onLogF
             <button onClick={onClose} className="text-text-muted hover:text-text-base"><i className="fas fa-times text-2xl"></i></button>
         </div>
         <div className="grid grid-cols-2 gap-4">
-            <ActionButton icon="food" label="Log Food" onClick={onLogFood} />
+            <ActionButton icon="foodLog" label="Log Food" onClick={onLogFood} />
             <ActionButton icon="dumbbell" label="Start Workout" onClick={onStartWorkout} />
         </div>
       </div>

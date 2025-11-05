@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState, useRef, TouchEvent } from 'react';
 import type { Session, WorkoutTemplate, UserGoals, DailyLog, FoodItem, UserProfile } from '../types.ts';
 import Icon from './common/Icon.tsx';
@@ -32,8 +33,8 @@ const MacroBar: React.FC<{ label: string; value: number; target: number; display
   return (
     <div className="flex-1 text-center">
       <p className="font-bold">{label}</p>
-      <div className="w-full bg-bg-subtle rounded-full h-2 my-1.5">
-        <div className={`${color} h-2 rounded-full`} style={{ width: `${Math.min(percentage, 100)}%` }}></div>
+      <div className="w-full bg-bg-subtle h-2 my-1.5">
+        <div className={`${color} h-2`} style={{ width: `${Math.min(percentage, 100)}%` }}></div>
       </div>
       <p className="text-sm text-text-muted">{displayValue}</p>
     </div>
@@ -104,9 +105,9 @@ const NutritionCard: React.FC<{ dailyLog: DailyLog; foodDatabase: FoodItem[]; us
         <StatDisplay value={userGoals.calorieTarget} label="Target" />
       </div>
       <div className="flex justify-between items-start gap-4 mb-6">
-        <MacroBar label="Protein" value={consumed.protein} target={userGoals.proteinTarget} displayValue={`${displayData.protein.toLocaleString()}g / ${userGoals.proteinTarget}g`} color="bg-orange-400" />
-        <MacroBar label="Fat" value={consumed.fat} target={userGoals.fatTarget} displayValue={`${displayData.fat.toLocaleString()}g / ${userGoals.fatTarget}g`} color="bg-yellow-400" />
-        <MacroBar label="Carbs" value={consumed.carbs} target={userGoals.carbsTarget} displayValue={`${displayData.carbs.toLocaleString()}g / ${userGoals.carbsTarget}g`} color="bg-green-400" />
+        <MacroBar label="Protein" value={consumed.protein} target={userGoals.proteinTarget} displayValue={`${displayData.protein.toLocaleString()}g / ${userGoals.proteinTarget}g`} color="bg-text-base" />
+        <MacroBar label="Fat" value={consumed.fat} target={userGoals.fatTarget} displayValue={`${displayData.fat.toLocaleString()}g / ${userGoals.fatTarget}g`} color="bg-text-base" />
+        <MacroBar label="Carbs" value={consumed.carbs} target={userGoals.carbsTarget} displayValue={`${displayData.carbs.toLocaleString()}g / ${userGoals.carbsTarget}g`} color="bg-text-base" />
       </div>
       <SegmentedControl options={['Consumed', 'Remaining']} selected={mode} onChange={setMode} />
     </div>
@@ -148,9 +149,9 @@ const StepsCard: React.FC<{ dailyLog: DailyLog; userGoals: UserGoals }> = ({ dai
                 <StatDisplay value={userGoals.stepTarget.toLocaleString()} label="Target" />
             </div>
             <div className="flex justify-between items-start gap-4 mb-6">
-                <MacroBar label="Miles" value={consumed.miles} target={userGoals.milesTarget} displayValue={`${displayData.miles.toFixed(1)} mi`} color="bg-orange-400" />
-                <MacroBar label="Calories" value={consumed.caloriesBurned} target={userGoals.caloriesBurnedTarget} displayValue={`${displayData.caloriesBurned.toLocaleString()} kcal`} color="bg-yellow-400" />
-                <MacroBar label="Move Mins" value={consumed.moveMinutes} target={userGoals.moveMinutesTarget} displayValue={`${displayData.moveMinutes.toLocaleString()} min`} color="bg-green-400" />
+                <MacroBar label="Miles" value={consumed.miles} target={userGoals.milesTarget} displayValue={`${displayData.miles.toFixed(1)} mi`} color="bg-text-base" />
+                <MacroBar label="Calories" value={consumed.caloriesBurned} target={userGoals.caloriesBurnedTarget} displayValue={`${displayData.caloriesBurned.toLocaleString()} kcal`} color="bg-text-base" />
+                <MacroBar label="Move Mins" value={consumed.moveMinutes} target={userGoals.moveMinutesTarget} displayValue={`${displayData.moveMinutes.toLocaleString()} min`} color="bg-text-base" />
             </div>
             <SegmentedControl options={['Consumed', 'Remaining']} selected={mode} onChange={setMode} />
         </div>
@@ -158,54 +159,6 @@ const StepsCard: React.FC<{ dailyLog: DailyLog; userGoals: UserGoals }> = ({ dai
 };
 
 
-// FIX: Added missing props for Google Fit integration to the Omit type.
-const SwipeableDashboard: React.FC<Omit<DashboardProps, 'profile' | 'sessions' | 'onUpdateLog' | 'nextWorkoutTemplate' | 'onStartWorkout' | 'onChooseWorkout' | 'onViewActivity' | 'onViewProfile' | 'allDailyLogs' | 'isGoogleFitConnected' | 'isSyncingSteps' | 'syncGoogleFitSteps' | 'onGoToSettings'>> = ({ dailyLog, userGoals, foodDatabase }) => {
-    const [activeIndex, setActiveIndex] = useState(0);
-    const touchStartX = useRef(0);
-    const touchEndX = useRef(0);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    const handleTouchStart = (e: TouchEvent) => {
-        touchStartX.current = e.targetTouches[0].clientX;
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-        touchEndX.current = e.targetTouches[0].clientX;
-    };
-
-    const handleTouchEnd = () => {
-        if (touchStartX.current - touchEndX.current > 75) {
-            // Swiped left
-            setActiveIndex(1);
-        }
-
-        if (touchStartX.current - touchEndX.current < -75) {
-            // Swiped right
-            setActiveIndex(0);
-        }
-    };
-
-    return (
-        <div>
-            <div className="overflow-hidden" ref={containerRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-                <div
-                    className="flex transition-transform duration-300 ease-in-out"
-                    style={{ transform: `translateX(-${activeIndex * 100}%)` }}
-                >
-                    <NutritionCard dailyLog={dailyLog} foodDatabase={foodDatabase} userGoals={userGoals} />
-                    <StepsCard dailyLog={dailyLog} userGoals={userGoals} />
-                </div>
-            </div>
-            <div className="flex justify-center items-center gap-2 mt-4">
-                <div className={`w-2 h-2 rounded-full transition-colors ${activeIndex === 0 ? 'bg-text-base' : 'bg-bg-subtle'}`}></div>
-                <div className={`w-2 h-2 rounded-full transition-colors ${activeIndex === 1 ? 'bg-text-base' : 'bg-bg-subtle'}`}></div>
-            </div>
-        </div>
-    );
-};
-
-
-// FIX: Added missing props for Google Fit integration to the DashboardProps interface.
 interface DashboardProps {
   sessions: Session[];
   dailyLog: DailyLog;
@@ -225,7 +178,6 @@ interface DashboardProps {
   onGoToSettings: () => void;
 }
 
-// FIX: Added GoogleFitCard component to display connection status and sync button.
 const GoogleFitCard: React.FC<{
   isConnected: boolean;
   isSyncing: boolean;
@@ -257,7 +209,6 @@ const GoogleFitCard: React.FC<{
     )
 }
 
-// FIX: Updated component to accept Google Fit props and render the GoogleFitCard instead of manual step input.
 const Dashboard: React.FC<DashboardProps> = ({ sessions, dailyLog, allDailyLogs, onUpdateLog, nextWorkoutTemplate, onStartWorkout, onChooseWorkout, userGoals, foodDatabase, onViewActivity, onViewProfile, profile, isGoogleFitConnected, isSyncingSteps, syncGoogleFitSteps, onGoToSettings }) => {
   return (
     <div className="space-y-6">
@@ -269,11 +220,10 @@ const Dashboard: React.FC<DashboardProps> = ({ sessions, dailyLog, allDailyLogs,
         <div className="w-12"></div>
       </div>
 
-      <SwipeableDashboard 
-        dailyLog={dailyLog}
-        userGoals={userGoals}
-        foodDatabase={foodDatabase}
-      />
+      <div className="space-y-6">
+        <NutritionCard dailyLog={dailyLog} foodDatabase={foodDatabase} userGoals={userGoals} />
+        <StepsCard dailyLog={dailyLog} userGoals={userGoals} />
+      </div>
       
       <GoogleFitCard
         isConnected={isGoogleFitConnected}

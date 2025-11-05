@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage.ts';
 import type { UserProfile, View, WeightUnit, Session, WorkoutTemplate, DailyLog, FoodItem, DailyChecklistItem, UserRatings, GoogleFitData } from './types.ts';
@@ -213,7 +214,7 @@ const MainApp: React.FC<{ userKey: string; onLogout: () => void; }> = ({ userKey
     const [foodDatabase, setFoodDatabase] = useLocalStorage<FoodItem[]>(`ppl_foods_${userKey}`, ALL_FOODS);
     const [userRatings, setUserRatings] = useLocalStorage<UserRatings>(`ppl_ratings_${userKey}`, {});
     const [theme, setTheme] = useLocalStorage<'light' | 'dark'>(`ppl_theme_${userKey}`, 'dark');
-    const [palette, setPalette] = useLocalStorage<string>(`ppl_palette_${userKey}`, 'Midnight');
+    const [palette, setPalette] = useLocalStorage<string>(`ppl_palette_${userKey}`, 'Monochrome');
     const [unit, setUnit] = useLocalStorage<WeightUnit>(`ppl_unit_${userKey}`, 'kg');
     const [googleFitData, setGoogleFitData] = useLocalStorage<GoogleFitData | null>(`ppl_google_fit_${userKey}`, null);
     const [googleClientId, setGoogleClientId] = useLocalStorage<string | null>(`ppl_google_client_id_${userKey}`, null);
@@ -555,30 +556,28 @@ const MainApp: React.FC<{ userKey: string; onLogout: () => void; }> = ({ userKey
                 {renderView()}
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-40">
-                <div className="container mx-auto px-4">
-                    <div className="bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 rounded-t-xl shadow-lg h-20 grid grid-cols-5 items-center">
-                        {NAV_ITEMS.map(item => (
-                            <button
-                                key={item.view}
-                                onClick={() => handleNavClick(item.view === 'ADD_ACTION' ? 'ADD_ACTION' : item.view)}
-                                className={`flex flex-col items-center justify-center h-full transition-colors ${
-                                    view === item.view ? 'text-primary' : 'text-text-muted hover:text-text-base'
-                                } ${item.view === 'ADD_ACTION' ? '-mt-8' : ''}`}
-                            >
-                                {item.view === 'ADD_ACTION' ? (
-                                    <div className="w-16 h-16 rounded-full bg-primary text-primary-content flex items-center justify-center shadow-lg border-4 border-bg-base">
-                                        <Icon name={item.icon} className="w-8 h-8"/>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Icon name={item.icon} className="w-7 h-7" />
-                                        <span className="text-xs font-semibold mt-1">{item.label}</span>
-                                    </>
-                                )}
-                            </button>
-                        ))}
-                    </div>
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-bg-muted border-t border-border">
+                <div className="container mx-auto px-4 h-20 grid grid-cols-5 items-center">
+                    {NAV_ITEMS.map(item => (
+                        <button
+                            key={item.view}
+                            onClick={() => handleNavClick(item.view === 'ADD_ACTION' ? 'ADD_ACTION' : item.view)}
+                            className={`flex flex-col items-center justify-center h-full transition-colors ${
+                                view === item.view ? 'text-primary' : 'text-text-muted hover:text-text-base'
+                            } ${item.view === 'ADD_ACTION' ? '-mt-8' : ''}`}
+                        >
+                            {item.view === 'ADD_ACTION' ? (
+                                <div className="w-16 h-16 rounded-full bg-primary text-primary-content flex items-center justify-center shadow-lg border-4 border-bg-muted">
+                                    <Icon name={item.icon} className="w-8 h-8"/>
+                                </div>
+                            ) : (
+                                <>
+                                    <Icon name={item.icon} className="w-7 h-7" />
+                                    <span className="text-xs font-semibold mt-1">{item.label}</span>
+                                </>
+                            )}
+                        </button>
+                    ))}
                 </div>
             </div>
 
